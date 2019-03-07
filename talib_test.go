@@ -18,9 +18,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func ok(t *testing.T, err error) {
@@ -53,7 +52,7 @@ var (
 	testNothingCrossed1 = []float64{1, 2, 3, 4, 8, 6, 7}
 	testNothingCrossed2 = []float64{1, 4, 5, 9, 5, 3, 7}
 
-	testCrossover1 = []float64{1, 3, 2, 4, 8, 6, 7}
+	testCrossover1 = []float64{1, 3, 2, 4, 8, 3, 8}
 	testCrossover2 = []float64{1, 5, 1, 4, 5, 6, 7}
 )
 
@@ -674,24 +673,40 @@ func TestHeikinashiCandles(t *testing.T) {
 
 	resultHigh, resultOpen, resultClose, resultLow := HeikinashiCandles(testHigh, testOpen, testClose, testLow)
 	for i, expected := range expectedHighs {
+		i++
+		if i == len(expectedHighs) {
+			continue
+		}
 		if resultHigh[i] != expected {
 			t.Errorf("Highs error: Expected %f at cell %d got %f ", expected, i, resultHigh[i])
 		}
 	}
 
 	for i, expected := range expectedOpens {
+		i++
+		if i == len(expectedOpens) {
+			continue
+		}
 		if resultOpen[i] != expected {
 			t.Errorf("Opens error: Expected %f at cell %d got %f ", expected, i, resultOpen[i])
 		}
 	}
 
 	for i, expected := range expectedCloses {
+		i++
+		if i == len(expectedCloses) {
+			continue
+		}
 		if resultClose[i] != expected {
 			t.Errorf("Closes error: Expected %f at cell %d got %f ", expected, i, resultClose[i])
 		}
 	}
 
 	for i, expected := range expectedLows {
+		i++
+		if i == len(expectedLows) {
+			continue
+		}
 		if resultLow[i] != expected {
 			t.Errorf("Lows error: Expected %f at cell %d got %f ", expected, i, resultLow[i])
 		}
@@ -735,7 +750,7 @@ func TestCrossunder(t *testing.T) {
 	series1 = []float64{1, 2, 3, 4, 8, 6, 7}
 	series2 = []float64{1, 4, 5, 9, 5, 3, 7}
 
-	if Crossunder(series1, series2) == true {
+	if Crossover(series1, series2) == true {
 		t.Error("Crossunder: Not expected and found")
 	}
 
