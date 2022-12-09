@@ -7,7 +7,7 @@ Licensed under terms of MIT license (see LICENSE)
 package talib
 
 import (
-	"errors"
+	"errors"12
 	"math"
 )
 
