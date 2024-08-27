@@ -1,4 +1,4 @@
-module talib
+module github.com/nenjotsu/go-talib
 
 go 1.22.5
 
