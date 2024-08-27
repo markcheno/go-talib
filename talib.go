@@ -1178,6 +1178,66 @@ func Sma(inReal []float64, inTimePeriod int) []float64 {
 	return outReal
 }
 
+// SMI - Stochastic Momentum Index
+// https://analyzingalpha.com/stochastic-momentum-index
+func Smi(prices []float64, period int, kPeriod int, dPeriod int, emaPeriod int) ([]float64, []float64) {
+	if len(prices) < period {
+		return []float64{}, []float64{}
+	}
+
+	smiValues := make([]float64, len(prices)-period+1)
+
+	for i := period - 1; i < len(prices); i++ {
+		// Calculate the lowest low and highest high over the period
+		lowPeriod := prices[i-period+1 : i+1]
+		lowestLow := Min(lowPeriod, period)
+		highestHigh := Max(lowPeriod, period)
+
+		// RawK calculation
+		rawK := ((prices[i] - lowestLow[i]) / (highestHigh[i] - lowestLow[i])) * 100
+
+		// Calculate the smoothed %K using SMA
+		kSmoothed := Sma([]float64{rawK}, kPeriod)
+
+		// Calculate double-smoothed %K (another SMA)
+		dSmoothed := Sma(kSmoothed, dPeriod)
+
+		// Calculate SMI
+		doubleSmoothedRange := (highestHigh[i] - lowestLow[i]) / 2.0
+		if doubleSmoothedRange != 0 {
+			smiValues[i-period+1] = (dSmoothed[0] / doubleSmoothedRange) * 100
+		} else {
+			smiValues[i-period+1] = 0
+		}
+	}
+
+	// Calculate EMA using the provided emaPeriod
+	emaValues := Ema(prices, emaPeriod)
+
+	// Return both SMI values and EMA values
+	return smiValues, emaValues
+}
+
+// Function to check if the SMI is overbought (above 40) within the lookback period
+func IsSmiOverbought(smiValues []float64, lookback int) bool {
+	for i := len(smiValues) - lookback; i < len(smiValues); i++ {
+		if smiValues[i] > 40 {
+			return true
+		}
+	}
+	return false
+}
+
+// Function to check if the SMI is oversold (below -40) within the lookback period
+func IsSmiOversold(smiValues []float64, lookback int) bool {
+	for i := len(smiValues) - lookback; i < len(smiValues); i++ {
+		if smiValues[i] < -40 {
+			return true
+		}
+	}
+	return false
+}
+
 // T3 - Triple Exponential Moving Average (T3) (lookback=6*inTimePeriod)
 func T3(inReal []float64, inTimePeriod int, inVFactor float64) []float64 {
 
@@ -3069,7 +3129,7 @@ func StochRsi(inReal []float64, inTimePeriod int, inFastKPeriod int, inFastDPeri
 	return outFastK, outFastD
 }
 
-//Trix - 1-day Rate-Of-Change (ROC) of a Triple Smooth EMA
+// Trix - 1-day Rate-Of-Change (ROC) of a Triple Smooth EMA
 func Trix(inReal []float64, inTimePeriod int) []float64 {
 
 	tmpReal := Ema(inReal, inTimePeriod)
@@ -5868,9 +5928,9 @@ func Sum(inReal []float64, inTimePeriod int) []float64 {
 //
 // Returns highs, opens, closes and lows of the heikinashi candles (in this order).
 //
-//    NOTE: The number of Heikin-Ashi candles will always be one less than the number of provided candles, due to the fact
-//          that a previous candle is necessary to calculate the Heikin-Ashi candle, therefore the first provided candle is not considered
-//          as "current candle" in the algorithm, but only as "previous candle".
+//	NOTE: The number of Heikin-Ashi candles will always be one less than the number of provided candles, due to the fact
+//	      that a previous candle is necessary to calculate the Heikin-Ashi candle, therefore the first provided candle is not considered
+//	      as "current candle" in the algorithm, but only as "previous candle".
 func HeikinashiCandles(highs []float64, opens []float64, closes []float64, lows []float64) ([]float64, []float64, []float64, []float64) {
 	N := len(highs)
 
@@ -5893,8 +5953,8 @@ func HeikinashiCandles(highs []float64, opens []float64, closes []float64, lows 
 
 // Hlc3 returns the Hlc3 values
 //
-//     NOTE: Every Hlc item is defined as follows : (high + low + close) / 3
-//           It is used as AvgPrice candle.
+//	NOTE: Every Hlc item is defined as follows : (high + low + close) / 3
+//	      It is used as AvgPrice candle.
 func Hlc3(highs []float64, lows []float64, closes []float64) []float64 {
 	N := len(highs)
 	result := make([]float64, N)
@@ -5907,10 +5967,10 @@ func Hlc3(highs []float64, lows []float64, closes []float64) []float64 {
 
 // Crossover returns true if series1 is crossing over series2.
 //
-//    NOTE: Usually this is used with Media Average Series to check if it crosses for buy signals.
-//          It assumes first values are the most recent.
-//          The crossover function does not use most recent value, since usually it's not a complete candle.
-//          The second recent values and the previous are used, instead.
+//	NOTE: Usually this is used with Media Average Series to check if it crosses for buy signals.
+//	      It assumes first values are the most recent.
+//	      The crossover function does not use most recent value, since usually it's not a complete candle.
+//	      The second recent values and the previous are used, instead.
 func Crossover(series1 []float64, series2 []float64) bool {
 	if len(series1) < 3 || len(series2) < 3 {
 		return false
@@ -5923,7 +5983,7 @@ func Crossover(series1 []float64, series2 []float64) bool {
 
 // Crossunder returns true if series1 is crossing under series2.
 //
-//    NOTE: Usually this is used with Media Average Series to check if it crosses for sell signals.
+//	NOTE: Usually this is used with Media Average Series to check if it crosses for sell signals.
 func Crossunder(series1 []float64, series2 []float64) bool {
 	if len(series1) < 3 || len(series2) < 3 {
 		return false
@@ -5941,11 +6001,12 @@ func Crossunder(series1 []float64, series2 []float64) bool {
 // This avoid calling multiple times the exchange for multiple contexts.
 //
 // Example:
-//     To transform 15 minute candles in 30 minutes candles you have a grouping factor = 2
 //
-//     To transform 15 minute candles in 1 hour candles you have a grouping factor = 4
+//	To transform 15 minute candles in 30 minutes candles you have a grouping factor = 2
 //
-//     To transform 30 minute candles in 1 hour candles you have a grouping factor = 2
+//	To transform 15 minute candles in 1 hour candles you have a grouping factor = 4
+//
+//	To transform 30 minute candles in 1 hour candles you have a grouping factor = 2
 func GroupCandles(highs []float64, opens []float64, closes []float64, lows []float64, groupingFactor int) ([]float64, []float64, []float64, []float64, error) {
 	N := len(highs)
 	if groupingFactor == 0 {
