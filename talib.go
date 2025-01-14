@@ -7,7 +7,6 @@ Licensed under terms of MIT license (see LICENSE)
 package talib
 
 import (
-	"errors"
 	"math"
 )
 
@@ -535,7 +534,7 @@ func Mama(inReal []float64, inFastLimit float64, inSlowLimit float64) ([]float64
 		periodWMASum += tempReal * 4.0
 		trailingWMAValue = inReal[trailingWMAIdx]
 		trailingWMAIdx++
-		smoothedValue = periodWMASum * 0.1
+		//smoothedValue = periodWMASum * 0.1
 		periodWMASum -= periodWMASub
 		i--
 		ok = i != 0
@@ -1301,7 +1300,7 @@ func Trima(inReal []float64, inTimePeriod int) []float64 {
 
 	lookbackTotal := inTimePeriod - 1
 	startIdx := lookbackTotal
-	outIdx := inTimePeriod - 1
+	var outIdx int
 	var factor float64
 
 	if inTimePeriod%2 == 1 {
@@ -3069,7 +3068,7 @@ func StochRsi(inReal []float64, inTimePeriod int, inFastKPeriod int, inFastDPeri
 	return outFastK, outFastD
 }
 
-//Trix - 1-day Rate-Of-Change (ROC) of a Triple Smooth EMA
+// Trix - 1-day Rate-Of-Change (ROC) of a Triple Smooth EMA
 func Trix(inReal []float64, inTimePeriod int) []float64 {
 
 	tmpReal := Ema(inReal, inTimePeriod)
@@ -3731,7 +3730,7 @@ func HtDcPeriod(inReal []float64) []float64 {
 		periodWMASum += tempReal * 4.0
 		trailingWMAValue = inReal[trailingWMAIdx]
 		trailingWMAIdx++
-		smoothedValue = periodWMASum * 0.1
+		//smoothedValue = periodWMASum * 0.1
 		periodWMASum -= periodWMASub
 		i--
 		ok = i != 0
@@ -3948,7 +3947,7 @@ func HtDcPhase(inReal []float64) []float64 {
 		periodWMASum += tempReal * 4.0
 		trailingWMAValue = inReal[trailingWMAIdx]
 		trailingWMAIdx++
-		smoothedValue = periodWMASum * 0.1
+		//smoothedValue = periodWMASum * 0.1
 		periodWMASum -= periodWMASub
 		i--
 		ok = i != 0
@@ -4204,7 +4203,7 @@ func HtPhasor(inReal []float64) ([]float64, []float64) {
 		periodWMASum += tempReal * 4.0
 		trailingWMAValue = inReal[trailingWMAIdx]
 		trailingWMAIdx++
-		smoothedValue = periodWMASum * 0.1
+		//smoothedValue = periodWMASum * 0.1
 		periodWMASum -= periodWMASub
 		i--
 		ok = i != 0
@@ -4429,7 +4428,7 @@ func HtSine(inReal []float64) ([]float64, []float64) {
 		periodWMASum += tempReal * 4.0
 		trailingWMAValue = inReal[trailingWMAIdx]
 		trailingWMAIdx++
-		smoothedValue = periodWMASum * 0.1
+		//smoothedValue = periodWMASum * 0.1
 		periodWMASum -= periodWMASub
 		i--
 		ok = i != 0
@@ -5862,128 +5861,4 @@ func Sum(inReal []float64, inTimePeriod int) []float64 {
 	}
 
 	return outReal
-}
-
-// HeikinashiCandles - from candle values extracts heikinashi candle values.
-//
-// Returns highs, opens, closes and lows of the heikinashi candles (in this order).
-//
-//    NOTE: The number of Heikin-Ashi candles will always be one less than the number of provided candles, due to the fact
-//          that a previous candle is necessary to calculate the Heikin-Ashi candle, therefore the first provided candle is not considered
-//          as "current candle" in the algorithm, but only as "previous candle".
-func HeikinashiCandles(highs []float64, opens []float64, closes []float64, lows []float64) ([]float64, []float64, []float64, []float64) {
-	N := len(highs)
-
-	heikinHighs := make([]float64, N)
-	heikinOpens := make([]float64, N)
-	heikinCloses := make([]float64, N)
-	heikinLows := make([]float64, N)
-
-	for currentCandle := 1; currentCandle < N; currentCandle++ {
-		previousCandle := currentCandle - 1
-
-		heikinHighs[currentCandle] = math.Max(highs[currentCandle], math.Max(opens[currentCandle], closes[currentCandle]))
-		heikinOpens[currentCandle] = (opens[previousCandle] + closes[previousCandle]) / 2
-		heikinCloses[currentCandle] = (highs[currentCandle] + opens[currentCandle] + closes[currentCandle] + lows[currentCandle]) / 4
-		heikinLows[currentCandle] = math.Min(highs[currentCandle], math.Min(opens[currentCandle], closes[currentCandle]))
-	}
-
-	return heikinHighs, heikinOpens, heikinCloses, heikinLows
-}
-
-// Hlc3 returns the Hlc3 values
-//
-//     NOTE: Every Hlc item is defined as follows : (high + low + close) / 3
-//           It is used as AvgPrice candle.
-func Hlc3(highs []float64, lows []float64, closes []float64) []float64 {
-	N := len(highs)
-	result := make([]float64, N)
-	for i := range highs {
-		result[i] = (highs[i] + lows[i] + closes[i]) / 3
-	}
-
-	return result
-}
-
-// Crossover returns true if series1 is crossing over series2.
-//
-//    NOTE: Usually this is used with Media Average Series to check if it crosses for buy signals.
-//          It assumes first values are the most recent.
-//          The crossover function does not use most recent value, since usually it's not a complete candle.
-//          The second recent values and the previous are used, instead.
-func Crossover(series1 []float64, series2 []float64) bool {
-	if len(series1) < 3 || len(series2) < 3 {
-		return false
-	}
-
-	N := len(series1)
-
-	return series1[N-2] <= series2[N-2] && series1[N-1] > series2[N-1]
-}
-
-// Crossunder returns true if series1 is crossing under series2.
-//
-//    NOTE: Usually this is used with Media Average Series to check if it crosses for sell signals.
-func Crossunder(series1 []float64, series2 []float64) bool {
-	if len(series1) < 3 || len(series2) < 3 {
-		return false
-	}
-
-	N := len(series1)
-
-	return series1[N-1] <= series2[N-1] && series1[N-2] > series2[N-2]
-}
-
-// GroupCandles groups a set of candles in another set of candles, basing on a grouping factor.
-//
-// This is pretty useful if you want to transform, for example, 15min candles into 1h candles using same data.
-//
-// This avoid calling multiple times the exchange for multiple contexts.
-//
-// Example:
-//     To transform 15 minute candles in 30 minutes candles you have a grouping factor = 2
-//
-//     To transform 15 minute candles in 1 hour candles you have a grouping factor = 4
-//
-//     To transform 30 minute candles in 1 hour candles you have a grouping factor = 2
-func GroupCandles(highs []float64, opens []float64, closes []float64, lows []float64, groupingFactor int) ([]float64, []float64, []float64, []float64, error) {
-	N := len(highs)
-	if groupingFactor == 0 {
-		return nil, nil, nil, nil, errors.New("Grouping factor must be > 0")
-	} else if groupingFactor == 1 {
-		return highs, opens, closes, lows, nil // no need to group in this case, return the parameters.
-	}
-	if N%groupingFactor > 0 {
-		return nil, nil, nil, nil, errors.New("Cannot group properly, need a groupingFactor which is a factor of the number of candles")
-	}
-
-	groupedN := N / groupingFactor
-
-	groupedHighs := make([]float64, groupedN)
-	groupedOpens := make([]float64, groupedN)
-	groupedCloses := make([]float64, groupedN)
-	groupedLows := make([]float64, groupedN)
-
-	lastOfCurrentGroup := groupingFactor - 1
-
-	k := 0
-	for i := 0; i < N; i += groupingFactor { // scan all param candles
-		groupedOpens[k] = opens[i]
-		groupedCloses[k] = closes[i+lastOfCurrentGroup]
-
-		groupedHighs[k] = highs[i]
-		groupedLows[k] = lows[i]
-
-		endOfCurrentGroup := i + lastOfCurrentGroup
-		for j := i + 1; j <= endOfCurrentGroup; j++ { // group high lows candles here
-			if lows[j] < groupedLows[k] {
-				groupedLows[k] = lows[j]
-			}
-			if highs[j] > groupedHighs[k] {
-				groupedHighs[k] = highs[j]
-			}
-		}
-		k++
-	}
-	return groupedHighs, groupedOpens, groupedCloses, groupedLows, nil
 }
