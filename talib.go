@@ -31,6 +31,15 @@ const (
 	T3MA
 )
 
+// epsilon is the tolerance used throughout TA-Lib's reference code to treat a
+// floating-point value as effectively zero (e.g. to avoid divide-by-zero).
+const epsilon = 0.00000000000001
+
+// isZero reports whether x is within epsilon of zero.
+func isZero(x float64) bool {
+	return -epsilon < x && x < epsilon
+}
+
 /* Overlap Studies */
 
 // BBands - Bollinger Bands
@@ -38,8 +47,14 @@ const (
 func BBands(inReal []float64, inTimePeriod int, inNbDevUp float64, inNbDevDn float64, inMAType MaType) ([]float64, []float64, []float64) {
 
 	outRealUpperBand := make([]float64, len(inReal))
-	outRealMiddleBand := Ma(inReal, inTimePeriod, inMAType)
+	outRealMiddleBand := make([]float64, len(inReal))
 	outRealLowerBand := make([]float64, len(inReal))
+
+	if inTimePeriod < 1 || len(inReal) <= inTimePeriod-1 {
+		return outRealUpperBand, outRealMiddleBand, outRealLowerBand
+	}
+
+	outRealMiddleBand = Ma(inReal, inTimePeriod, inMAType)
 
 	tempBuffer2 := StdDev(inReal, inTimePeriod, 1.0)
 
@@ -89,6 +104,11 @@ func BBands(inReal []float64, inTimePeriod int, inNbDevUp float64, inNbDevDn flo
 func Dema(inReal []float64, inTimePeriod int) []float64 {
 
 	outReal := make([]float64, len(inReal))
+
+	if inTimePeriod < 1 || len(inReal) <= 2*(inTimePeriod-1) {
+		return outReal
+	}
+
 	firstEMA := Ema(inReal, inTimePeriod)
 	secondEMA := Ema(firstEMA[inTimePeriod-1:], inTimePeriod)
 
@@ -106,6 +126,9 @@ func ema(inReal []float64, inTimePeriod int, k1 float64) []float64 {
 
 	lookbackTotal := inTimePeriod - 1
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inReal) {
+		return outReal
+	}
 	today := startIdx - lookbackTotal
 	i := inTimePeriod
 	tempReal := 0.0
@@ -165,6 +188,9 @@ func HtTrendline(inReal []float64) []float64 {
 	rad2Deg := 45.0 / tempReal
 	lookbackTotal := 63
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inReal) {
+		return outReal
+	}
 	trailingWMAIdx := startIdx - lookbackTotal
 	today := trailingWMAIdx
 	tempReal = inReal[today]
@@ -189,7 +215,6 @@ func HtTrendline(inReal []float64) []float64 {
 		periodWMASum += tempReal * 4.0
 		trailingWMAValue = inReal[trailingWMAIdx]
 		trailingWMAIdx++
-		//smoothedValue := periodWMASum * 0.1
 		periodWMASum -= periodWMASub
 		i--
 		ok = i != 0
@@ -383,10 +408,17 @@ func Kama(inReal []float64, inTimePeriod int) []float64 {
 
 	outReal := make([]float64, len(inReal))
 
+	if inTimePeriod < 1 {
+		return outReal
+	}
+
 	constMax := 2.0 / (30.0 + 1.0)
 	constDiff := 2.0/(2.0+1.0) - constMax
 	lookbackTotal := inTimePeriod
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inReal) {
+		return outReal
+	}
 	sumROC1 := 0.0
 	today := startIdx - lookbackTotal
 	trailingIdx := today
@@ -404,7 +436,7 @@ func Kama(inReal []float64, inTimePeriod int) []float64 {
 	trailingIdx++
 	periodROC := tempReal - tempReal2
 	trailingValue := tempReal2
-	if (sumROC1 <= periodROC) || (((-(0.00000000000001)) < sumROC1) && (sumROC1 < (0.00000000000001))) {
+	if (sumROC1 <= periodROC) || (isZero(sumROC1)) {
 		tempReal = 1.0
 	} else {
 		tempReal = math.Abs(periodROC / sumROC1)
@@ -421,7 +453,7 @@ func Kama(inReal []float64, inTimePeriod int) []float64 {
 		sumROC1 -= math.Abs(trailingValue - tempReal2)
 		sumROC1 += math.Abs(tempReal - inReal[today-1])
 		trailingValue = tempReal2
-		if (sumROC1 <= periodROC) || (((-(0.00000000000001)) < sumROC1) && (sumROC1 < (0.00000000000001))) {
+		if (sumROC1 <= periodROC) || (isZero(sumROC1)) {
 			tempReal = 1.0
 		} else {
 			tempReal = math.Abs(periodROC / sumROC1)
@@ -441,7 +473,7 @@ func Kama(inReal []float64, inTimePeriod int) []float64 {
 		sumROC1 -= math.Abs(trailingValue - tempReal2)
 		sumROC1 += math.Abs(tempReal - inReal[today-1])
 		trailingValue = tempReal2
-		if (sumROC1 <= periodROC) || (((-(0.00000000000001)) < sumROC1) && (sumROC1 < (0.00000000000001))) {
+		if (sumROC1 <= periodROC) || (isZero(sumROC1)) {
 			tempReal = 1.0
 		} else {
 			tempReal = math.Abs(periodROC / sumROC1)
@@ -496,6 +528,10 @@ func Mama(inReal []float64, inFastLimit float64, inSlowLimit float64) ([]float64
 	outMAMA := make([]float64, len(inReal))
 	outFAMA := make([]float64, len(inReal))
 
+	if len(inReal) <= 32 {
+		return outMAMA, outFAMA
+	}
+
 	a := 0.0962
 	b := 0.5769
 	detrenderOdd := make([]float64, 3)
@@ -534,7 +570,6 @@ func Mama(inReal []float64, inFastLimit float64, inSlowLimit float64) ([]float64
 		periodWMASum += tempReal * 4.0
 		trailingWMAValue = inReal[trailingWMAIdx]
 		trailingWMAIdx++
-		//smoothedValue = periodWMASum * 0.1
 		periodWMASum -= periodWMASub
 		i--
 		ok = i != 0
@@ -806,24 +841,54 @@ func MidPoint(inReal []float64, inTimePeriod int) []float64 {
 	outReal := make([]float64, len(inReal))
 	nbInitialElementNeeded := inTimePeriod - 1
 	startIdx := nbInitialElementNeeded
+	if startIdx < 0 || startIdx >= len(inReal) {
+		return outReal
+	}
 	outIdx := inTimePeriod - 1
 	today := startIdx
 	trailingIdx := startIdx - nbInitialElementNeeded
+	// Track the running window extrema by index (TA-Lib approach): only rescan
+	// the window when the tracked extremum scrolls out of it, otherwise update
+	// in O(1). Amortized near-O(n) instead of the naive O(n*inTimePeriod).
+	highestIdx := -1
+	highest := 0.0
+	lowestIdx := -1
+	lowest := 0.0
 
 	for today < len(inReal) {
-		lowest := inReal[trailingIdx]
-		trailingIdx++
-		highest := lowest
-		for i := trailingIdx; i <= today; i++ {
-			tmp := inReal[i]
-			if tmp < lowest {
-				lowest = tmp
-			} else if tmp > highest {
-				highest = tmp
+		tmp := inReal[today]
+
+		if highestIdx < trailingIdx {
+			highestIdx = trailingIdx
+			highest = inReal[highestIdx]
+			for i := highestIdx + 1; i <= today; i++ {
+				if inReal[i] > highest {
+					highestIdx = i
+					highest = inReal[i]
+				}
 			}
+		} else if tmp >= highest {
+			highestIdx = today
+			highest = tmp
 		}
+
+		if lowestIdx < trailingIdx {
+			lowestIdx = trailingIdx
+			lowest = inReal[lowestIdx]
+			for i := lowestIdx + 1; i <= today; i++ {
+				if inReal[i] < lowest {
+					lowestIdx = i
+					lowest = inReal[i]
+				}
+			}
+		} else if tmp <= lowest {
+			lowestIdx = today
+			lowest = tmp
+		}
+
 		outReal[outIdx] = (highest + lowest) / 2.0
 		outIdx++
+		trailingIdx++
 		today++
 	}
 	return outReal
@@ -836,25 +901,51 @@ func MidPrice(inHigh []float64, inLow []float64, inTimePeriod int) []float64 {
 
 	nbInitialElementNeeded := inTimePeriod - 1
 	startIdx := nbInitialElementNeeded
+	if startIdx < 0 || startIdx >= len(inHigh) {
+		return outReal
+	}
 	outIdx := inTimePeriod - 1
 	today := startIdx
 	trailingIdx := startIdx - nbInitialElementNeeded
+	// Index-tracking window extrema (see MidPoint): highest over inHigh, lowest
+	// over inLow, each rescanned only when it scrolls out of the window.
+	highestIdx := -1
+	highest := 0.0
+	lowestIdx := -1
+	lowest := 0.0
+
 	for today < len(inHigh) {
-		lowest := inLow[trailingIdx]
-		highest := inHigh[trailingIdx]
-		trailingIdx++
-		for i := trailingIdx; i <= today; i++ {
-			tmp := inLow[i]
-			if tmp < lowest {
-				lowest = tmp
+		if highestIdx < trailingIdx {
+			highestIdx = trailingIdx
+			highest = inHigh[highestIdx]
+			for i := highestIdx + 1; i <= today; i++ {
+				if inHigh[i] > highest {
+					highestIdx = i
+					highest = inHigh[i]
+				}
 			}
-			tmp = inHigh[i]
-			if tmp > highest {
-				highest = tmp
-			}
+		} else if inHigh[today] >= highest {
+			highestIdx = today
+			highest = inHigh[today]
 		}
+
+		if lowestIdx < trailingIdx {
+			lowestIdx = trailingIdx
+			lowest = inLow[lowestIdx]
+			for i := lowestIdx + 1; i <= today; i++ {
+				if inLow[i] < lowest {
+					lowestIdx = i
+					lowest = inLow[i]
+				}
+			}
+		} else if inLow[today] <= lowest {
+			lowestIdx = today
+			lowest = inLow[today]
+		}
+
 		outReal[outIdx] = (highest + lowest) / 2.0
 		outIdx++
+		trailingIdx++
 		today++
 	}
 	return outReal
@@ -865,6 +956,10 @@ func MidPrice(inHigh []float64, inLow []float64, inTimePeriod int) []float64 {
 func Sar(inHigh []float64, inLow []float64, inAcceleration float64, inMaximum float64) []float64 {
 
 	outReal := make([]float64, len(inHigh))
+
+	if len(inHigh) < 2 || len(inLow) < len(inHigh) {
+		return outReal
+	}
 
 	af := inAcceleration
 	if af > inMaximum {
@@ -995,6 +1090,10 @@ func SarExt(inHigh []float64, inLow []float64,
 	inAccelerationMaxShort float64) []float64 {
 
 	outReal := make([]float64, len(inHigh))
+
+	if len(inHigh) < 2 || len(inLow) < len(inHigh) {
+		return outReal
+	}
 
 	startIdx := 1
 	afLong := inAccelerationInitLong
@@ -1153,6 +1252,9 @@ func Sma(inReal []float64, inTimePeriod int) []float64 {
 
 	lookbackTotal := inTimePeriod - 1
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inReal) {
+		return outReal
+	}
 	periodTotal := 0.0
 	trailingIdx := startIdx - lookbackTotal
 	i := trailingIdx
@@ -1184,6 +1286,9 @@ func T3(inReal []float64, inTimePeriod int, inVFactor float64) []float64 {
 
 	lookbackTotal := 6 * (inTimePeriod - 1)
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inReal) {
+		return outReal
+	}
 	today := startIdx - lookbackTotal
 	k := 2.0 / (float64(inTimePeriod) + 1.0)
 	oneMinusK := 1.0 - k
@@ -1275,6 +1380,11 @@ func T3(inReal []float64, inTimePeriod int, inVFactor float64) []float64 {
 func Tema(inReal []float64, inTimePeriod int) []float64 {
 
 	outReal := make([]float64, len(inReal))
+
+	if inTimePeriod < 1 || len(inReal) <= 3*(inTimePeriod-1) {
+		return outReal
+	}
+
 	firstEMA := Ema(inReal, inTimePeriod)
 	secondEMA := Ema(firstEMA[inTimePeriod-1:], inTimePeriod)
 	thirdEMA := Ema(secondEMA[inTimePeriod-1:], inTimePeriod)
@@ -1300,6 +1410,9 @@ func Trima(inReal []float64, inTimePeriod int) []float64 {
 
 	lookbackTotal := inTimePeriod - 1
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inReal) {
+		return outReal
+	}
 	var outIdx int
 	var factor float64
 
@@ -1405,6 +1518,9 @@ func Wma(inReal []float64, inTimePeriod int) []float64 {
 
 	lookbackTotal := inTimePeriod - 1
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inReal) {
+		return outReal
+	}
 
 	if inTimePeriod == 1 {
 		copy(outReal, inReal)
@@ -1449,6 +1565,9 @@ func Adx(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod int)
 	inTimePeriodF := float64(inTimePeriod)
 	lookbackTotal := (2 * inTimePeriod) - 1
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inHigh) {
+		return outReal
+	}
 	outIdx := inTimePeriod
 	prevMinusDM := 0.0
 	prevPlusDM := 0.0
@@ -1511,11 +1630,11 @@ func Adx(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod int)
 
 		prevTR = prevTR - (prevTR / inTimePeriodF) + tempReal
 		prevClose = inClose[today]
-		if !(((-(0.00000000000001)) < prevTR) && (prevTR < (0.00000000000001))) {
+		if !(isZero(prevTR)) {
 			minusDI := (100.0 * (prevMinusDM / prevTR))
 			plusDI := (100.0 * (prevPlusDM / prevTR))
 			tempReal = minusDI + plusDI
-			if !(((-(0.00000000000001)) < tempReal) && (tempReal < (0.00000000000001))) {
+			if !(isZero(tempReal)) {
 				sumDX += (100.0 * (math.Abs(minusDI-plusDI) / tempReal))
 			}
 		}
@@ -1551,11 +1670,11 @@ func Adx(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod int)
 
 		prevTR = prevTR - (prevTR / inTimePeriodF) + tempReal
 		prevClose = inClose[today]
-		if !(((-(0.00000000000001)) < prevTR) && (prevTR < (0.00000000000001))) {
+		if !(isZero(prevTR)) {
 			minusDI := (100.0 * (prevMinusDM / prevTR))
 			plusDI := (100.0 * (prevPlusDM / prevTR))
 			tempReal = minusDI + plusDI
-			if !(((-(0.00000000000001)) < tempReal) && (tempReal < (0.00000000000001))) {
+			if !(isZero(tempReal)) {
 				tempReal = (100.0 * (math.Abs(minusDI-plusDI) / tempReal))
 				prevADX = (((prevADX * (inTimePeriodF - 1)) + tempReal) / inTimePeriodF)
 			}
@@ -1571,6 +1690,11 @@ func Adx(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod int)
 func AdxR(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod int) []float64 {
 
 	outReal := make([]float64, len(inClose))
+
+	if inTimePeriod < 1 || len(inClose) <= 3*inTimePeriod-2 {
+		return outReal
+	}
+
 	startIdx := (2 * inTimePeriod) - 1
 	tmpadx := Adx(inHigh, inLow, inClose, inTimePeriod)
 	i := startIdx
@@ -1587,6 +1711,11 @@ func Apo(inReal []float64, inFastPeriod int, inSlowPeriod int, inMAType MaType) 
 	if inSlowPeriod < inFastPeriod {
 		inSlowPeriod, inFastPeriod = inFastPeriod, inSlowPeriod
 	}
+
+	if inFastPeriod < 1 || inSlowPeriod < 1 || len(inReal) <= inSlowPeriod-1 {
+		return make([]float64, len(inReal))
+	}
+
 	tempBuffer := Ma(inReal, inFastPeriod, inMAType)
 	outReal := Ma(inReal, inSlowPeriod, inMAType)
 	for i := inSlowPeriod - 1; i < len(inReal); i++ {
@@ -1726,7 +1855,7 @@ func Bop(inOpen []float64, inHigh []float64, inLow []float64, inClose []float64)
 
 	for i := 0; i < len(inClose); i++ {
 		tempReal := inHigh[i] - inLow[i]
-		if tempReal < (0.00000000000001) {
+		if tempReal < epsilon {
 			outReal[i] = 0.0
 		} else {
 			outReal[i] = (inClose[i] - inOpen[i]) / tempReal
@@ -1744,6 +1873,9 @@ func Cmo(inReal []float64, inTimePeriod int) []float64 {
 	lookbackTotal := inTimePeriod
 	startIdx := lookbackTotal
 	outIdx := startIdx
+	if startIdx < 0 || startIdx >= len(inReal) {
+		return outReal
+	}
 	if inTimePeriod == 1 {
 		copy(outReal, inReal)
 		return outReal
@@ -1768,7 +1900,7 @@ func Cmo(inReal []float64, inTimePeriod int) []float64 {
 	prevGain /= float64(inTimePeriod)
 	if today > startIdx {
 		tempValue1 := prevGain + prevLoss
-		if !(((-(0.00000000000001)) < tempValue1) && (tempValue1 < (0.00000000000001))) {
+		if !(isZero(tempValue1)) {
 			outReal[outIdx] = 100.0 * ((prevGain - prevLoss) / tempValue1)
 		} else {
 			outReal[outIdx] = 0.0
@@ -1806,7 +1938,7 @@ func Cmo(inReal []float64, inTimePeriod int) []float64 {
 		prevLoss /= float64(inTimePeriod)
 		prevGain /= float64(inTimePeriod)
 		tempValue1 = prevGain + prevLoss
-		if !(((-(0.00000000000001)) < tempValue1) && (tempValue1 < (0.00000000000001))) {
+		if !(isZero(tempValue1)) {
 			outReal[outIdx] = 100.0 * ((prevGain - prevLoss) / tempValue1)
 		} else {
 			outReal[outIdx] = 0.0
@@ -1824,6 +1956,9 @@ func Cci(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod int)
 	circBufferIdx := 0
 	lookbackTotal := inTimePeriod - 1
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inClose) {
+		return outReal
+	}
 	circBuffer := make([]float64, inTimePeriod)
 	maxIdxCircBuffer := (inTimePeriod - 1)
 	i := startIdx - lookbackTotal
@@ -1881,6 +2016,9 @@ func Dx(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod int) 
 		lookbackTotal = inTimePeriod
 	}
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inClose) {
+		return outReal
+	}
 	outIdx := startIdx
 	prevMinusDM := 0.0
 	prevPlusDM := 0.0
@@ -1918,11 +2056,11 @@ func Dx(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod int) 
 		prevClose = inClose[today]
 	}
 
-	if !(((-(0.00000000000001)) < prevTR) && (prevTR < (0.00000000000001))) {
+	if !(isZero(prevTR)) {
 		minusDI := (100.0 * (prevMinusDM / prevTR))
 		plusDI := (100.0 * (prevPlusDM / prevTR))
 		tempReal := minusDI + plusDI
-		if !(((-(0.00000000000001)) < tempReal) && (tempReal < (0.00000000000001))) {
+		if !(isZero(tempReal)) {
 			outReal[outIdx] = (100.0 * (math.Abs(minusDI-plusDI) / tempReal))
 		} else {
 			outReal[outIdx] = 0.0
@@ -1959,11 +2097,11 @@ func Dx(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod int) 
 
 		prevTR = prevTR - (prevTR / float64(inTimePeriod)) + tempReal
 		prevClose = inClose[today]
-		if !(((-(0.00000000000001)) < prevTR) && (prevTR < (0.00000000000001))) {
+		if !(isZero(prevTR)) {
 			minusDI := (100.0 * (prevMinusDM / prevTR))
 			plusDI := (100.0 * (prevPlusDM / prevTR))
 			tempReal = minusDI + plusDI
-			if !(((-(0.00000000000001)) < tempReal) && (tempReal < (0.00000000000001))) {
+			if !(isZero(tempReal)) {
 				outReal[outIdx] = (100.0 * (math.Abs(minusDI-plusDI) / tempReal))
 			} else {
 				outReal[outIdx] = outReal[outIdx-1]
@@ -1982,6 +2120,10 @@ func Macd(inReal []float64, inFastPeriod int, inSlowPeriod int, inSignalPeriod i
 
 	if inSlowPeriod < inFastPeriod {
 		inSlowPeriod, inFastPeriod = inFastPeriod, inSlowPeriod
+	}
+
+	if inSignalPeriod < 1 || len(inReal) == 0 {
+		return make([]float64, len(inReal)), make([]float64, len(inReal)), make([]float64, len(inReal))
 	}
 
 	k1 := 0.0
@@ -2039,6 +2181,10 @@ func MacdExt(inReal []float64, inFastPeriod int, inFastMAType MaType, inSlowPeri
 	outMACDSignal := make([]float64, len(inReal))
 	outMACDHist := make([]float64, len(inReal))
 
+	if lookbackTotal < 0 || lookbackTotal >= len(inReal) {
+		return outMACD, outMACDSignal, outMACDHist
+	}
+
 	slowMABuffer := Ma(inReal, inSlowPeriod, inSlowMAType)
 	fastMABuffer := Ma(inReal, inFastPeriod, inFastMAType)
 	tempBuffer1 := make([]float64, len(inReal))
@@ -2073,6 +2219,9 @@ func MinusDI(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod 
 		lookbackTotal = inTimePeriod
 	}
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inClose) {
+		return outReal
+	}
 	outIdx := startIdx
 
 	prevHigh := 0.0
@@ -2103,7 +2252,7 @@ func MinusDI(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod 
 					tempReal = tempReal2
 				}
 
-				if ((-(0.00000000000001)) < tempReal) && (tempReal < (0.00000000000001)) {
+				if isZero(tempReal) {
 					outReal[outIdx] = 0.0
 				} else {
 					outReal[outIdx] = diffM / tempReal
@@ -2178,7 +2327,7 @@ func MinusDI(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod 
 		prevTR = prevTR - (prevTR / float64(inTimePeriod)) + tempReal
 		prevClose = inClose[today]
 	}
-	if !(((-(0.00000000000001)) < prevTR) && (prevTR < (0.00000000000001))) {
+	if !(isZero(prevTR)) {
 		outReal[startIdx] = (100.0 * (prevMinusDM / prevTR))
 	} else {
 		outReal[startIdx] = 0.0
@@ -2209,7 +2358,7 @@ func MinusDI(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod 
 
 		prevTR = prevTR - (prevTR / float64(inTimePeriod)) + tempReal
 		prevClose = inClose[today]
-		if !(((-(0.00000000000001)) < prevTR) && (prevTR < (0.00000000000001))) {
+		if !(isZero(prevTR)) {
 			outReal[outIdx] = (100.0 * (prevMinusDM / prevTR))
 		} else {
 			outReal[outIdx] = 0.0
@@ -2230,6 +2379,9 @@ func MinusDM(inHigh []float64, inLow []float64, inTimePeriod int) []float64 {
 		lookbackTotal = inTimePeriod - 1
 	}
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inHigh) {
+		return outReal
+	}
 	outIdx := startIdx
 	today := startIdx
 	prevHigh := 0.0
@@ -2273,6 +2425,9 @@ func MinusDM(inHigh []float64, inLow []float64, inTimePeriod int) []float64 {
 			prevMinusDM += diffM
 		}
 	}
+	// Faithful port of TA-Lib: this smoothing loop intentionally runs zero
+	// times for the default (unstable-period = 0) configuration. Kept as-is to
+	// mirror the reference implementation; prevMinusDM is already seeded above.
 	i = 0
 	for i != 0 {
 		i--
@@ -2320,6 +2475,9 @@ func Mfi(inHigh []float64, inLow []float64, inClose []float64, inVolume []float6
 	maxIdxMflow = inTimePeriod - 1
 	lookbackTotal := inTimePeriod
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inClose) {
+		return outReal
+	}
 	outIdx := startIdx
 	today := startIdx - lookbackTotal
 	prevValue := (inHigh[today] + inLow[today] + inClose[today]) / 3.0
@@ -2444,6 +2602,9 @@ func PlusDI(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod i
 		lookbackTotal = inTimePeriod
 	}
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inClose) {
+		return outReal
+	}
 	outIdx := startIdx
 
 	prevHigh := 0.0
@@ -2474,7 +2635,7 @@ func PlusDI(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod i
 					tempReal = tempReal2
 				}
 
-				if ((-(0.00000000000001)) < tempReal) && (tempReal < (0.00000000000001)) {
+				if isZero(tempReal) {
 					outReal[outIdx] = 0.0
 				} else {
 					outReal[outIdx] = diffP / tempReal
@@ -2549,7 +2710,7 @@ func PlusDI(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod i
 		prevTR = prevTR - (prevTR / float64(inTimePeriod)) + tempReal
 		prevClose = inClose[today]
 	}
-	if !(((-(0.00000000000001)) < prevTR) && (prevTR < (0.00000000000001))) {
+	if !(isZero(prevTR)) {
 		outReal[startIdx] = (100.0 * (prevPlusDM / prevTR))
 	} else {
 		outReal[startIdx] = 0.0
@@ -2580,7 +2741,7 @@ func PlusDI(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod i
 
 		prevTR = prevTR - (prevTR / float64(inTimePeriod)) + tempReal
 		prevClose = inClose[today]
-		if !(((-(0.00000000000001)) < prevTR) && (prevTR < (0.00000000000001))) {
+		if !(isZero(prevTR)) {
 			outReal[outIdx] = (100.0 * (prevPlusDM / prevTR))
 		} else {
 			outReal[outIdx] = 0.0
@@ -2601,6 +2762,9 @@ func PlusDM(inHigh []float64, inLow []float64, inTimePeriod int) []float64 {
 		lookbackTotal = inTimePeriod - 1
 	}
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inHigh) {
+		return outReal
+	}
 	outIdx := startIdx
 	today := startIdx
 	prevHigh := 0.0
@@ -2644,6 +2808,9 @@ func PlusDM(inHigh []float64, inLow []float64, inTimePeriod int) []float64 {
 			prevPlusDM += diffP
 		}
 	}
+	// Faithful port of TA-Lib: this smoothing loop intentionally runs zero
+	// times for the default (unstable-period = 0) configuration. Kept as-is to
+	// mirror the reference implementation; prevPlusDM is already seeded above.
 	i = 0
 	for i != 0 {
 		i--
@@ -2687,12 +2854,17 @@ func Ppo(inReal []float64, inFastPeriod int, inSlowPeriod int, inMAType MaType) 
 	if inSlowPeriod < inFastPeriod {
 		inSlowPeriod, inFastPeriod = inFastPeriod, inSlowPeriod
 	}
+
+	if inFastPeriod < 1 || inSlowPeriod < 1 || len(inReal) <= inSlowPeriod-1 {
+		return make([]float64, len(inReal))
+	}
+
 	tempBuffer := Ma(inReal, inFastPeriod, inMAType)
 	outReal := Ma(inReal, inSlowPeriod, inMAType)
 
 	for i := inSlowPeriod - 1; i < len(inReal); i++ {
 		tempReal := outReal[i]
-		if !(((-(0.00000000000001)) < tempReal) && (tempReal < (0.00000000000001))) {
+		if !(isZero(tempReal)) {
 			outReal[i] = ((tempBuffer[i] - tempReal) / tempReal) * 100.0
 		} else {
 			outReal[i] = 0.0
@@ -2807,7 +2979,7 @@ func Rsi(inReal []float64, inTimePeriod int) []float64 {
 
 	outReal := make([]float64, len(inReal))
 
-	if inTimePeriod < 2 {
+	if inTimePeriod < 2 || len(inReal) <= inTimePeriod {
 		return outReal
 	}
 
@@ -2839,7 +3011,7 @@ func Rsi(inReal []float64, inTimePeriod int) []float64 {
 	if today > 0 {
 
 		tempValue1 = prevGain + prevLoss
-		if !((-0.00000000000001 < tempValue1) && (tempValue1 < 0.00000000000001)) {
+		if !(isZero(tempValue1)) {
 			outReal[outIdx] = 100.0 * (prevGain / tempValue1)
 		} else {
 			outReal[outIdx] = 0.0
@@ -2881,7 +3053,7 @@ func Rsi(inReal []float64, inTimePeriod int) []float64 {
 		prevLoss /= float64(inTimePeriod)
 		prevGain /= float64(inTimePeriod)
 		tempValue1 = prevGain + prevLoss
-		if !((-0.00000000000001 < tempValue1) && (tempValue1 < 0.00000000000001)) {
+		if !(isZero(tempValue1)) {
 			outReal[outIdx] = 100.0 * (prevGain / tempValue1)
 		} else {
 			outReal[outIdx] = 0.0
@@ -2903,6 +3075,9 @@ func Stoch(inHigh []float64, inLow []float64, inClose []float64, inFastKPeriod i
 	lookbackDSlow := inSlowDPeriod - 1
 	lookbackTotal := lookbackK + lookbackDSlow + lookbackKSlow
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inClose) {
+		return outSlowK, outSlowD
+	}
 	outIdx := 0
 	trailingIdx := startIdx - lookbackTotal
 	today := trailingIdx + lookbackK
@@ -2961,7 +3136,6 @@ func Stoch(inHigh []float64, inLow []float64, inClose []float64, inFastKPeriod i
 
 	tempBuffer1 := Ma(tempBuffer, inSlowKPeriod, inSlowKMAType)
 	tempBuffer2 := Ma(tempBuffer1, inSlowDPeriod, inSlowDMAType)
-	//for i, j := lookbackK, lookbackTotal; j < len(inClose); i, j = i+1, j+1 {
 	for i, j := lookbackDSlow+lookbackKSlow, lookbackTotal; j < len(inClose); i, j = i+1, j+1 {
 		outSlowK[j] = tempBuffer1[i]
 		outSlowD[j] = tempBuffer2[i]
@@ -2980,6 +3154,9 @@ func StochF(inHigh []float64, inLow []float64, inClose []float64, inFastKPeriod 
 	lookbackFastD := inFastDPeriod - 1
 	lookbackTotal := lookbackK + lookbackFastD
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inClose) {
+		return outFastK, outFastD
+	}
 	outIdx := 0
 	trailingIdx := startIdx - lookbackTotal
 	today := trailingIdx + lookbackK
@@ -3057,6 +3234,9 @@ func StochRsi(inReal []float64, inTimePeriod int, inFastKPeriod int, inFastDPeri
 	lookbackSTOCHF := (inFastKPeriod - 1) + (inFastDPeriod - 1)
 	lookbackTotal := inTimePeriod + lookbackSTOCHF
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inReal) {
+		return outFastK, outFastD
+	}
 	tempRSIBuffer := Rsi(inReal, inTimePeriod)
 	tempk, tempd := StochF(tempRSIBuffer, tempRSIBuffer, tempRSIBuffer, inFastKPeriod, inFastDPeriod, inFastDMAType)
 
@@ -3071,12 +3251,17 @@ func StochRsi(inReal []float64, inTimePeriod int, inFastKPeriod int, inFastDPeri
 // Trix - 1-day Rate-Of-Change (ROC) of a Triple Smooth EMA
 func Trix(inReal []float64, inTimePeriod int) []float64 {
 
+	outReal := make([]float64, len(inReal))
+
+	if inTimePeriod < 1 || len(inReal) <= ((inTimePeriod-1)*3)+1 {
+		return outReal
+	}
+
 	tmpReal := Ema(inReal, inTimePeriod)
 	tmpReal = Ema(tmpReal[inTimePeriod-1:], inTimePeriod)
 	tmpReal = Ema(tmpReal[inTimePeriod-1:], inTimePeriod)
 	tmpReal = Roc(tmpReal, 1)
 
-	outReal := make([]float64, len(inReal))
 	for i, j := inTimePeriod, ((inTimePeriod-1)*3)+1; j < len(outReal); i, j = i+1, j+1 {
 		outReal[j] = tmpReal[i]
 	}
@@ -3123,6 +3308,9 @@ func UltOsc(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod1 
 	lookbackTotal++
 
 	startIdx := lookbackTotal - 1
+	if startIdx < 0 || startIdx >= len(inClose) {
+		return outReal
+	}
 
 	a1Total := 0.0
 	b1Total := 0.0
@@ -3249,13 +3437,13 @@ func UltOsc(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod1 
 		b2Total += trueRange
 		b3Total += trueRange
 		output := 0.0
-		if !(((-(0.00000000000001)) < b1Total) && (b1Total < (0.00000000000001))) {
+		if !(isZero(b1Total)) {
 			output += 4.0 * (a1Total / b1Total)
 		}
-		if !(((-(0.00000000000001)) < b2Total) && (b2Total < (0.00000000000001))) {
+		if !(isZero(b2Total)) {
 			output += 2.0 * (a2Total / b2Total)
 		}
-		if !(((-(0.00000000000001)) < b3Total) && (b3Total < (0.00000000000001))) {
+		if !(isZero(b3Total)) {
 			output += a3Total / b3Total
 		}
 		tempLT = inLow[trailingIdx1]
@@ -3447,6 +3635,9 @@ func AdOsc(inHigh []float64, inLow []float64, inClose []float64, inVolume []floa
 	}
 	lookbackTotal := slowestPeriod - 1
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inClose) {
+		return outReal
+	}
 	today := startIdx - lookbackTotal
 	ad := 0.0
 	fastk := (2.0 / (float64(inFastPeriod) + 1.0))
@@ -3500,6 +3691,11 @@ func AdOsc(inHigh []float64, inLow []float64, inClose []float64, inVolume []floa
 func Obv(inReal []float64, inVolume []float64) []float64 {
 
 	outReal := make([]float64, len(inReal))
+
+	if len(inReal) == 0 || len(inVolume) < len(inReal) {
+		return outReal
+	}
+
 	startIdx := 0
 	prevOBV := inVolume[startIdx]
 	prevReal := inReal[startIdx]
@@ -3535,6 +3731,10 @@ func Atr(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod int)
 		return TRange(inHigh, inLow, inClose)
 	}
 
+	if len(inClose) <= inTimePeriod {
+		return outReal
+	}
+
 	outIdx := inTimePeriod
 	today := inTimePeriod + 1
 
@@ -3565,6 +3765,10 @@ func Natr(inHigh []float64, inLow []float64, inClose []float64, inTimePeriod int
 
 	if inTimePeriod <= 1 {
 		return TRange(inHigh, inLow, inClose)
+	}
+
+	if len(inClose) <= inTimePeriod {
+		return outReal
 	}
 
 	inTimePeriodF := float64(inTimePeriod)
@@ -3692,6 +3896,10 @@ func HtDcPeriod(inReal []float64) []float64 {
 
 	outReal := make([]float64, len(inReal))
 
+	if len(inReal) <= 32 {
+		return outReal
+	}
+
 	a := 0.0962
 	b := 0.5769
 	detrenderOdd := make([]float64, 3)
@@ -3730,7 +3938,6 @@ func HtDcPeriod(inReal []float64) []float64 {
 		periodWMASum += tempReal * 4.0
 		trailingWMAValue = inReal[trailingWMAIdx]
 		trailingWMAIdx++
-		//smoothedValue = periodWMASum * 0.1
 		periodWMASum -= periodWMASub
 		i--
 		ok = i != 0
@@ -3904,6 +4111,11 @@ func HtDcPeriod(inReal []float64) []float64 {
 func HtDcPhase(inReal []float64) []float64 {
 
 	outReal := make([]float64, len(inReal))
+
+	if len(inReal) <= 63 {
+		return outReal
+	}
+
 	a := 0.0962
 	b := 0.5769
 	detrenderOdd := make([]float64, 3)
@@ -3947,7 +4159,6 @@ func HtDcPhase(inReal []float64) []float64 {
 		periodWMASum += tempReal * 4.0
 		trailingWMAValue = inReal[trailingWMAIdx]
 		trailingWMAIdx++
-		//smoothedValue = periodWMASum * 0.1
 		periodWMASum -= periodWMASub
 		i--
 		ok = i != 0
@@ -4165,6 +4376,10 @@ func HtPhasor(inReal []float64) ([]float64, []float64) {
 	outInPhase := make([]float64, len(inReal))
 	outQuadrature := make([]float64, len(inReal))
 
+	if len(inReal) <= 32 {
+		return outInPhase, outQuadrature
+	}
+
 	a := 0.0962
 	b := 0.5769
 	detrenderOdd := make([]float64, 3)
@@ -4203,7 +4418,6 @@ func HtPhasor(inReal []float64) ([]float64, []float64) {
 		periodWMASum += tempReal * 4.0
 		trailingWMAValue = inReal[trailingWMAIdx]
 		trailingWMAIdx++
-		//smoothedValue = periodWMASum * 0.1
 		periodWMASum -= periodWMASub
 		i--
 		ok = i != 0
@@ -4384,6 +4598,10 @@ func HtSine(inReal []float64) ([]float64, []float64) {
 	outSine := make([]float64, len(inReal))
 	outLeadSine := make([]float64, len(inReal))
 
+	if len(inReal) <= 63 {
+		return outSine, outLeadSine
+	}
+
 	a := 0.0962
 	b := 0.5769
 	detrenderOdd := make([]float64, 3)
@@ -4428,7 +4646,6 @@ func HtSine(inReal []float64) ([]float64, []float64) {
 		periodWMASum += tempReal * 4.0
 		trailingWMAValue = inReal[trailingWMAIdx]
 		trailingWMAIdx++
-		//smoothedValue = periodWMASum * 0.1
 		periodWMASum -= periodWMASub
 		i--
 		ok = i != 0
@@ -4644,6 +4861,11 @@ func HtSine(inReal []float64) ([]float64, []float64) {
 func HtTrendMode(inReal []float64) []float64 {
 
 	outReal := make([]float64, len(inReal))
+
+	if len(inReal) <= 63 {
+		return outReal
+	}
+
 	a := 0.0962
 	b := 0.5769
 	detrenderOdd := make([]float64, 3)
@@ -4698,7 +4920,6 @@ func HtTrendMode(inReal []float64) []float64 {
 		periodWMASum += tempReal * 4.0
 		trailingWMAValue = inReal[trailingWMAIdx]
 		trailingWMAIdx++
-		//smoothedValue := periodWMASum * 0.1
 		periodWMASum -= periodWMASub
 		i--
 		ok = i != 0
@@ -4965,6 +5186,9 @@ func Beta(inReal0 []float64, inReal1 []float64, inTimePeriod int) []float64 {
 	n := 0.0
 	nbInitialElementNeeded := inTimePeriod
 	startIdx := nbInitialElementNeeded
+	if startIdx < 0 || startIdx >= len(inReal0) {
+		return outReal
+	}
 	trailingIdx := startIdx - nbInitialElementNeeded
 	trailingLastPriceX := inReal0[trailingIdx]
 	lastPriceX := trailingLastPriceX
@@ -4975,14 +5199,14 @@ func Beta(inReal0 []float64, inReal1 []float64, inTimePeriod int) []float64 {
 	for i < startIdx {
 		tmpReal := inReal0[i]
 		x := 0.0
-		if !((-0.00000000000001 < lastPriceX) && (lastPriceX < 0.00000000000001)) {
+		if !(isZero(lastPriceX)) {
 			x = (tmpReal - lastPriceX) / lastPriceX
 		}
 		lastPriceX = tmpReal
 		tmpReal = inReal1[i]
 		i++
 		y := 0.0
-		if !((-0.00000000000001 < lastPriceY) && (lastPriceY < 0.00000000000001)) {
+		if !(isZero(lastPriceY)) {
 			y = (tmpReal - lastPriceY) / lastPriceY
 		}
 		lastPriceY = tmpReal
@@ -4995,7 +5219,7 @@ func Beta(inReal0 []float64, inReal1 []float64, inTimePeriod int) []float64 {
 	n = float64(inTimePeriod)
 	for ok := true; ok; {
 		tmpReal = inReal0[i]
-		if !((-0.00000000000001 < lastPriceX) && (lastPriceX < 0.00000000000001)) {
+		if !(isZero(lastPriceX)) {
 			x = (tmpReal - lastPriceX) / lastPriceX
 		} else {
 			x = 0.0
@@ -5003,7 +5227,7 @@ func Beta(inReal0 []float64, inReal1 []float64, inTimePeriod int) []float64 {
 		lastPriceX = tmpReal
 		tmpReal = inReal1[i]
 		i++
-		if !((-0.00000000000001 < lastPriceY) && (lastPriceY < 0.00000000000001)) {
+		if !(isZero(lastPriceY)) {
 			y = (tmpReal - lastPriceY) / lastPriceY
 		} else {
 			y = 0.0
@@ -5014,7 +5238,7 @@ func Beta(inReal0 []float64, inReal1 []float64, inTimePeriod int) []float64 {
 		sX += x
 		sY += y
 		tmpReal = inReal0[trailingIdx]
-		if !(((-(0.00000000000001)) < trailingLastPriceX) && (trailingLastPriceX < (0.00000000000001))) {
+		if !(isZero(trailingLastPriceX)) {
 			x = (tmpReal - trailingLastPriceX) / trailingLastPriceX
 		} else {
 			x = 0.0
@@ -5022,14 +5246,14 @@ func Beta(inReal0 []float64, inReal1 []float64, inTimePeriod int) []float64 {
 		trailingLastPriceX = tmpReal
 		tmpReal = inReal1[trailingIdx]
 		trailingIdx++
-		if !(((-(0.00000000000001)) < trailingLastPriceY) && (trailingLastPriceY < (0.00000000000001))) {
+		if !(isZero(trailingLastPriceY)) {
 			y = (tmpReal - trailingLastPriceY) / trailingLastPriceY
 		} else {
 			y = 0.0
 		}
 		trailingLastPriceY = tmpReal
 		tmpReal = (n * sSS) - (sX * sX)
-		if !(((-(0.00000000000001)) < tmpReal) && (tmpReal < (0.00000000000001))) {
+		if !(isZero(tmpReal)) {
 			outReal[outIdx] = ((n * sXY) - (sX * sY)) / tmpReal
 		} else {
 			outReal[outIdx] = 0.0
@@ -5053,6 +5277,9 @@ func Correl(inReal0 []float64, inReal1 []float64, inTimePeriod int) []float64 {
 	inTimePeriodF := float64(inTimePeriod)
 	lookbackTotal := inTimePeriod - 1
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inReal0) {
+		return outReal
+	}
 	trailingIdx := startIdx - lookbackTotal
 	sumXY, sumX, sumY, sumX2, sumY2 := 0.0, 0.0, 0.0, 0.0, 0.0
 	today := trailingIdx
@@ -5069,7 +5296,7 @@ func Correl(inReal0 []float64, inReal1 []float64, inTimePeriod int) []float64 {
 	trailingY := inReal1[trailingIdx]
 	trailingIdx++
 	tempReal := (sumX2 - ((sumX * sumX) / inTimePeriodF)) * (sumY2 - ((sumY * sumY) / inTimePeriodF))
-	if !(tempReal < 0.00000000000001) {
+	if !(tempReal < epsilon) {
 		outReal[inTimePeriod-1] = (sumXY - ((sumX * sumY) / inTimePeriodF)) / math.Sqrt(tempReal)
 	} else {
 		outReal[inTimePeriod-1] = 0.0
@@ -5093,7 +5320,7 @@ func Correl(inReal0 []float64, inReal1 []float64, inTimePeriod int) []float64 {
 		trailingY = inReal1[trailingIdx]
 		trailingIdx++
 		tempReal = (sumX2 - ((sumX * sumX) / inTimePeriodF)) * (sumY2 - ((sumY * sumY) / inTimePeriodF))
-		if !(tempReal < (0.00000000000001)) {
+		if !(tempReal < epsilon) {
 			outReal[outIdx] = (sumXY - ((sumX * sumY) / inTimePeriodF)) / math.Sqrt(tempReal)
 		} else {
 			outReal[outIdx] = 0.0
@@ -5111,6 +5338,9 @@ func LinearReg(inReal []float64, inTimePeriod int) []float64 {
 	inTimePeriodF := float64(inTimePeriod)
 	lookbackTotal := inTimePeriod
 	startIdx := lookbackTotal
+	if startIdx < 1 || startIdx > len(inReal) {
+		return outReal
+	}
 	outIdx := startIdx - 1
 	today := startIdx - 1
 	sumX := inTimePeriodF * (inTimePeriodF - 1) * 0.5
@@ -5150,6 +5380,9 @@ func LinearRegAngle(inReal []float64, inTimePeriod int) []float64 {
 	inTimePeriodF := float64(inTimePeriod)
 	lookbackTotal := inTimePeriod
 	startIdx := lookbackTotal
+	if startIdx < 1 || startIdx > len(inReal) {
+		return outReal
+	}
 	outIdx := startIdx - 1
 	today := startIdx - 1
 	sumX := inTimePeriodF * (inTimePeriodF - 1) * 0.5
@@ -5188,6 +5421,9 @@ func LinearRegIntercept(inReal []float64, inTimePeriod int) []float64 {
 	inTimePeriodF := float64(inTimePeriod)
 	lookbackTotal := inTimePeriod
 	startIdx := lookbackTotal
+	if startIdx < 1 || startIdx > len(inReal) {
+		return outReal
+	}
 	outIdx := startIdx - 1
 	today := startIdx - 1
 	sumX := inTimePeriodF * (inTimePeriodF - 1) * 0.5
@@ -5226,6 +5462,9 @@ func LinearRegSlope(inReal []float64, inTimePeriod int) []float64 {
 	inTimePeriodF := float64(inTimePeriod)
 	lookbackTotal := inTimePeriod
 	startIdx := lookbackTotal
+	if startIdx < 1 || startIdx > len(inReal) {
+		return outReal
+	}
 	outIdx := startIdx - 1
 	today := startIdx - 1
 	sumX := inTimePeriodF * (inTimePeriodF - 1) * 0.5
@@ -5263,7 +5502,7 @@ func StdDev(inReal []float64, inTimePeriod int, inNbDev float64) []float64 {
 	if inNbDev != 1.0 {
 		for i := 0; i < len(inReal); i++ {
 			tempReal := outReal[i]
-			if !(tempReal < 0.00000000000001) {
+			if !(tempReal < epsilon) {
 				outReal[i] = math.Sqrt(tempReal) * inNbDev
 			} else {
 				outReal[i] = 0.0
@@ -5272,7 +5511,7 @@ func StdDev(inReal []float64, inTimePeriod int, inNbDev float64) []float64 {
 	} else {
 		for i := 0; i < len(inReal); i++ {
 			tempReal := outReal[i]
-			if !(tempReal < 0.00000000000001) {
+			if !(tempReal < epsilon) {
 				outReal[i] = math.Sqrt(tempReal)
 			} else {
 				outReal[i] = 0.0
@@ -5290,6 +5529,9 @@ func Tsf(inReal []float64, inTimePeriod int) []float64 {
 	inTimePeriodF := float64(inTimePeriod)
 	lookbackTotal := inTimePeriod
 	startIdx := lookbackTotal
+	if startIdx < 1 || startIdx > len(inReal) {
+		return outReal
+	}
 	outIdx := startIdx - 1
 	today := startIdx - 1
 	sumX := inTimePeriodF * (inTimePeriodF - 1.0) * 0.5
@@ -5328,6 +5570,9 @@ func Var(inReal []float64, inTimePeriod int) []float64 {
 
 	nbInitialElementNeeded := inTimePeriod - 1
 	startIdx := nbInitialElementNeeded
+	if startIdx < 0 || startIdx >= len(inReal) {
+		return outReal
+	}
 	periodTotal1 := 0.0
 	periodTotal2 := 0.0
 	trailingIdx := startIdx - nbInitialElementNeeded
@@ -5504,6 +5749,9 @@ func Tanh(inReal []float64) []float64 {
 // Add - Vector arithmetic addition
 func Add(inReal0 []float64, inReal1 []float64) []float64 {
 	outReal := make([]float64, len(inReal0))
+	if len(inReal0) == 0 || len(inReal0) != len(inReal1) {
+		return outReal
+	}
 	for i := 0; i < len(inReal0); i++ {
 		outReal[i] = inReal0[i] + inReal1[i]
 	}
@@ -5513,6 +5761,9 @@ func Add(inReal0 []float64, inReal1 []float64) []float64 {
 // Div - Vector arithmetic division
 func Div(inReal0 []float64, inReal1 []float64) []float64 {
 	outReal := make([]float64, len(inReal0))
+	if len(inReal0) == 0 || len(inReal0) != len(inReal1) {
+		return outReal
+	}
 	for i := 0; i < len(inReal0); i++ {
 		outReal[i] = inReal0[i] / inReal1[i]
 	}
@@ -5818,6 +6069,9 @@ func MinMaxIndex(inReal []float64, inTimePeriod int) ([]float64, []float64) {
 // Mult - Vector arithmetic multiply
 func Mult(inReal0 []float64, inReal1 []float64) []float64 {
 	outReal := make([]float64, len(inReal0))
+	if len(inReal0) == 0 || len(inReal0) != len(inReal1) {
+		return outReal
+	}
 	for i := 0; i < len(inReal0); i++ {
 		outReal[i] = inReal0[i] * inReal1[i]
 	}
@@ -5827,6 +6081,9 @@ func Mult(inReal0 []float64, inReal1 []float64) []float64 {
 // Sub - Vector arithmetic subtraction
 func Sub(inReal0 []float64, inReal1 []float64) []float64 {
 	outReal := make([]float64, len(inReal0))
+	if len(inReal0) == 0 || len(inReal0) != len(inReal1) {
+		return outReal
+	}
 	for i := 0; i < len(inReal0); i++ {
 		outReal[i] = inReal0[i] - inReal1[i]
 	}
@@ -5840,6 +6097,9 @@ func Sum(inReal []float64, inTimePeriod int) []float64 {
 
 	lookbackTotal := inTimePeriod - 1
 	startIdx := lookbackTotal
+	if startIdx < 0 || startIdx >= len(inReal) {
+		return outReal
+	}
 	periodTotal := 0.0
 	trailingIdx := startIdx - lookbackTotal
 	i := trailingIdx

@@ -26,3 +26,6 @@ _testmain.go
 .DS_Store
 .vscode
 .python-version
+
+# uv venv used by the justfile to run the TA-Lib parity tests
+.venv
